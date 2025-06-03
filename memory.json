@@ -1,0 +1,28 @@
+{
+  "tasks": [
+    {
+      "type": "email",
+      "to": "hello@abc.com",
+      "subject": "Water",
+      "body": "how are you ref"
+    },
+    {
+      "type": "calendar",
+      "person": "john",
+      "date": "3rd june",
+      "time": "9"
+    },
+    {
+      "type": "calendar",
+      "person": "Alice",
+      "date": "3rd June",
+      "time": "5 PM"
+    },
+    {
+      "type": "calendar",
+      "person": "cena",
+      "date": "3rd august",
+      "time": "10 PM"
+    }
+  ]
+}
