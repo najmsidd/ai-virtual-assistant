@@ -23,6 +23,21 @@
       "person": "cena",
       "date": "3rd august",
       "time": "10 PM"
+    },
+    {
+      "type": "The video introduces an AI tool that helps users monitor air quality, predict pollution levels and provides actionable recommendations to protect their health. The problem addressed is the global crisis of rising pollution levels, hidden health risks, limited data, and millions unaware of the danger they face daily. The tool offers real-time AQI monitoring, location-based forecasts, pollution hotspot visualization, personalized alerts, and actionable recommendations to fight back against pollution. It is presented as a movement that empowers users to take action, protect their health, and save the planet.",
+      "summary": "The video introduces an AI tool that helps users monitor air quality, predict pollution levels and provides actionable recommendations to protect their health. The problem addressed is the global crisis of rising pollution levels, hidden health risks, limited data, and millions unaware of the danger they face daily. The tool offers real-time AQI monitoring, location-based forecasts, pollution hotspot visualization, personalized alerts, and actionable recommendations to fight back against polluti"
+    },
+    {
+      "type": "url_summary",
+      "url": "https://en.wikipedia.org/wiki/Artificial_intelligence",
+      "summary": "The webpage is about Artificial Intelligence (AI) from Wikipedia, which includes information on its goals such as reasoning, problem-solving, knowledge representation, planning, decision making, learning, natural language processing, perception, social intelligence and general intelligence. It also covers techniques like search and optimization, logic, probabilistic methods for uncertain reasoning, classifiers and statistical learning methods, artificial neural networks, deep learning, GPT, hardware and software. The page discusses applications of AI in various fields such as health and medicine, games, mathematics, finance, military, generative AI, agents, sexuality and other industry-specific tasks. It also addresses the ethics of AI including risks and harm like privacy and copyright issues, dominance by tech giants, power needs and environmental impacts, misinformation, algorithmic bias and fairness, lack of transparency, bad actors and weaponized AI."
+    },
+    {
+      "type": "email",
+      "to": "rock@bulls.com",
+      "subject": "wwe",
+      "body": "world wrestling entertainment"
     }
   ]
 }
