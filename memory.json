@@ -38,6 +38,18 @@
       "to": "rock@bulls.com",
       "subject": "wwe",
       "body": "world wrestling entertainment"
+    },
+    {
+      "type": "calendar",
+      "person": "Ankit",
+      "date": "Friday",
+      "time": "4"
+    },
+    {
+      "type": "reminder",
+      "task": "submit the report",
+      "date": "tomorrow",
+      "time": "5pm"
     }
   ]
 }

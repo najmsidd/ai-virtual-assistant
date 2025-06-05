@@ -38,6 +38,37 @@ def log_to_google_sheets(row):
 
     sheet.append_row(row)
 
+def extract_from_text(user_input):
+    prompt = f"""
+You are a task extraction assistant. A user will give you a message, and you must extract the task details in JSON format.
+
+Your job is to return a dictionary with:
+- type: one of ["email", "calendar", "url_summary", "pdf_summary", "reminder", "general"]
+- to (for emails)
+- subject (for emails)
+- body (for emails)
+- person (for calendar)
+- date (for calendar/reminder)
+- time (for calendar/reminder)
+- url (for url_summary)
+- task (for reminder)
+- prompt (for general chat or unknown)
+
+If any field is not needed, return it as null.
+
+Message: "{user_input}"
+Return JSON only.
+"""
+    with model.chat_session() as session:
+        result = session.generate(prompt=prompt)
+
+    try:
+        data = json.loads(result)
+    except:
+        data = {"type": "general", "prompt": user_input}
+
+    return data
+
 with st.sidebar:
     st.subheader("Task History")
     if memory["tasks"]:
@@ -48,6 +79,8 @@ with st.sidebar:
                 st.markdown(f"**Meeting with:** {task['person']}  **Date:** {task['date']}  **Time:** {task['time']}")
             elif task["type"] == "url_summary":
                 st.markdown(f"**Summarized URL:** {task['url']}")
+            elif task["type"] == "reminder":
+                st.markdown(f"**Reminder:** {task['task']} on {task['date']} at {task['time']}")
 
     else:
         st.write("No tasks added")
@@ -90,16 +123,12 @@ user_input = st.text_input("You", "")
 
 if user_input:
 
-    match_email = re.match(r"send email to (.+?) with subject (.+?) and body (.+)", user_input, re.IGNORECASE)
+    task = extract_from_text(user_input)
 
-    match_calendar = re.match(r"add meeting with (.+?) on (.+?) at (.+)", user_input, re.IGNORECASE)
-
-    match_url = re.match(r"summarize url (https?://[^\s]+)", user_input, re.IGNORECASE)
-
-    if match_email:
-        to_email = match_email.group(1)
-        subject = match_email.group(2)
-        body = match_email.group(3)
+    if task["type"] == "email":
+        to_email = task["to"]
+        subject = task["subject"]
+        body = task["body"]
 
         with open("memory.json", "r+") as f:
             data = json.load(f)
@@ -118,10 +147,10 @@ if user_input:
 
         response = f"Email simulated to {to_email} with subject '{subject}' and body:\n'{body}'" 
 
-    elif match_calendar:
-        person = match_calendar.group(1)
-        date = match_calendar.group(2)
-        time = match_calendar.group(3)
+    elif task["type"] == "calendar":
+        person = task["person"]
+        date = task["date"]
+        time = task["time"]
 
         with open("memory.json", "r+") as f:
             data = json.load(f)
@@ -140,8 +169,8 @@ if user_input:
 
         response = f"Meeting with {person} scheduled on {date} at {time} "
     
-    elif match_url:
-        url = match_url.group(1)
+    elif task["type"] == "url_summary":
+        url = task["url"]
 
         try:
             page = requests.get(url, timeout=10)
@@ -173,7 +202,25 @@ if user_input:
         except Exception as e:
             response = f"Failed to fetch or summarize URL. Error: {e}"
 
-    
+    elif task["type"] == "reminder":
+        reminder = task["task"]
+        date = task["date"]
+        time = task["time"]
+        with open("memory.json", "r+") as f:
+            data = json.load(f)
+            data["tasks"].append({
+                "type" : "reminder",
+                "task": reminder,
+                "date": date,
+                "time": time
+            })
+            f.seek(0)
+            json.dump(data, f, indent=2)
+            f.truncate()
+
+        log_to_google_sheets(["Reminder", reminder, date, time])
+        response = f"Reminder set for {reminder} at {date} on {time}"
+
     else:
         with model.chat_session() as session:
             response = session.generate(prompt=user_input)
