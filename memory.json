@@ -49,7 +49,84 @@
       "type": "reminder",
       "task": "submit the report",
       "date": "tomorrow",
-      "time": "5pm"
+      "time": "5pm",
+      "notified": false
+    },
+    {
+      "type": "reminder",
+      "task": "cook noodles",
+      "date": "6th June 2025",
+      "time": "19:27",
+      "notified": false
+    },
+    {
+      "type": "reminder",
+      "task": "cook noodles",
+      "date": "6th June 2025",
+      "time": "19:27",
+      "notified": false
+    },
+    {
+      "type": "reminder",
+      "task": "take my medicine",
+      "date": "2025-06-05",
+      "time": "20:37",
+      "notified": true
+    },
+    {
+      "type": "reminder",
+      "task": "eat food",
+      "date": "2025-06-05",
+      "time": "20:50",
+      "notified": false
+    },
+    {
+      "type": "reminder",
+      "task": "eat dinner",
+      "date": "2025-06-05",
+      "time": "21:12",
+      "notified": false
+    },
+    {
+      "type": "reminder",
+      "task": "cook steak",
+      "date": "2025-06-07",
+      "time": "09:55",
+      "notified": true
+    },
+    {
+      "type": "reminder",
+      "task": "cook rice",
+      "date": "2025-06-07",
+      "time": "10:07",
+      "notified": true
+    },
+    {
+      "type": "reminder",
+      "task": "cook rice",
+      "date": "2025-06-07",
+      "time": "10:07",
+      "notified": true
+    },
+    {
+      "type": "reminder",
+      "task": "cook dinner",
+      "date": "2025-06-07",
+      "time": "10:58",
+      "notified": true
+    },
+    {
+      "type": "reminder",
+      "task": "cook dinner",
+      "date": "2025-06-07",
+      "time": "10:58",
+      "notified": false
+    },
+    {
+      "type": "calendar",
+      "person": "Aayush",
+      "date": "2025-06-08",
+      "time": "15:00"
     }
   ]
 }

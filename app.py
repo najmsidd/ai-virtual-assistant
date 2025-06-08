@@ -8,19 +8,88 @@ import requests
 from bs4 import BeautifulSoup
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+import threading
+import datetime
+import time
 
 model_path = r"C:/Users/najms/AppData/Local/nomic.ai/GPT4All/Nous-Hermes-2-Mistral-7B-DPO.Q4_0.gguf"
-
 model = GPT4All(model_name=model_path)
+
+def reminder_checker():
+    while True:
+        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+        reminders_triggered = []
+
+        try:
+            with open("memory.json", "r+") as f:
+                data = json.load(f)
+                new_tasks = []
+
+                for task in data["tasks"]:
+                    if task.get("type") == "reminder" and not task.get("notified"):
+                        task_time = f"{task['date']} {task['time']}"
+                        if task_time == now:
+                            reminders_triggered.append(task)
+                            task["notified"] = True
+                    new_tasks.append(task)
+
+                # Save back updated memory
+                f.seek(0)
+                json.dump({"tasks": new_tasks}, f, indent=2)
+                f.truncate()
+
+        except Exception as e:
+            print("Reminder check error:", e)
+
+        # Print to console for debugging
+        if reminders_triggered:
+            print(f"[{now}] Triggered reminders: {[t['task'] for t in reminders_triggered]}")
+
+        # Write triggered reminders to a file for UI pickup
+        if reminders_triggered:
+            try:
+                # Create or append to triggered reminders file
+                triggered_file = "triggered_reminders.json"
+                existing_triggered = []
+                
+                if os.path.exists(triggered_file):
+                    with open(triggered_file, "r") as f:
+                        try:
+                            existing_triggered = json.load(f)
+                        except:
+                            existing_triggered = []
+                
+                for reminder in reminders_triggered:
+                    reminder["triggered_at"] = now
+                    existing_triggered.append(reminder)
+                
+                with open(triggered_file, "w") as f:
+                    json.dump(existing_triggered, f, indent=2)
+                    
+            except Exception as e:
+                print("Error writing triggered reminders:", e)
+
+        time.sleep(60)
+
+
+if "reminder_thread_started" not in st.session_state:
+    threading.Thread(target=reminder_checker, daemon=True).start()
+    st.session_state.reminder_thread_started = True
+
+if "displayed_reminders" not in st.session_state:
+    st.session_state.displayed_reminders = set()
 
 st.title("Virtual AI Assistant (Local GPT)")
 
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
+if "pending_reminders" not in st.session_state:
+    st.session_state.pending_reminders = []
+
 if not os.path.exists("memory.json"):
     with open("memory.json", "w") as f:
-        json.dump({"tasks":[]}, f)
+        json.dump({"tasks": []}, f)
 
 with open("memory.json", "r") as f:
     memory = json.load(f)
@@ -43,7 +112,7 @@ def extract_from_text(user_input):
 You are a task extraction assistant. A user will give you a message, and you must extract the task details in JSON format.
 
 Your job is to return a dictionary with:
-- type: one of ["email", "calendar", "url_summary", "pdf_summary", "reminder", "general"]
+- type: one of ["email", "calendar", "url_summary", "pdf_summary", "reminder", "general", "calendar_query"]
 - to (for emails)
 - subject (for emails)
 - body (for emails)
@@ -54,7 +123,16 @@ Your job is to return a dictionary with:
 - task (for reminder)
 - prompt (for general chat or unknown)
 
+Examples:
+Message: "Schedule meeting with Aayush on 2025-06-10 at 15:00"
+=> type: "calendar", person: "Aayush", date: "2025-06-10", time: "15:00"
+
+Message: "What meetings do I have today?"
+=> type: "calendar_query", date: "<today's date>"
+
 If any field is not needed, return it as null.
+
+Respond ONLY with valid JSON. Do not include explanations or markdown.
 
 Message: "{user_input}"
 Return JSON only.
@@ -64,10 +142,66 @@ Return JSON only.
 
     try:
         data = json.loads(result)
+        if data.get("type") == "reminder":
+            if not all([data.get("task"), data.get("date"), data.get("time")]):
+                data["type"] = "general"
+                data["prompt"] = user_input
     except:
         data = {"type": "general", "prompt": user_input}
 
     return data
+
+def build_contexual_prompt(user_input, history_limit=5):
+    past_user_msgs = [msg for sender, msg in st.session_state.chat if sender == "You"]
+    recent_msgs = past_user_msgs[-history_limit:]
+
+    history_text = "\n".join(f"User: {msg}" for msg in recent_msgs)
+
+    return f"""
+You are a helpful assistant with short-term memory.
+
+Here is the recent conversation:
+{history_text}
+
+Now respond to the user's new message:
+User: {user_input}
+Assistant:"""
+
+
+def check_and_display_triggered_reminders():
+    triggered_file = "triggered_reminders.json"
+    if os.path.exists(triggered_file):
+        try:
+            with open(triggered_file, "r") as f:
+                triggered_reminders = json.load(f)
+            
+            if not triggered_reminders:
+                return False
+            
+            new_reminders = []
+            for reminder in triggered_reminders:
+                reminder_id = f"{reminder['task']}_{reminder['date']}_{reminder['time']}_{reminder.get('triggered_at', '')}"
+                if reminder_id not in st.session_state.displayed_reminders:
+                    new_reminders.append(reminder)
+                    st.session_state.displayed_reminders.add(reminder_id)
+            
+            if new_reminders:
+                for reminder in new_reminders:
+                    st.success(f"🔔 **Reminder Alert**: {reminder['task']} (scheduled for {reminder['date']} at {reminder['time']})")
+                    reminder_msg = f"🔔 Reminder: {reminder['task']} at {reminder['date']} {reminder['time']}"
+                    st.session_state.chat.append(("Assistant", reminder_msg))
+                
+                with open(triggered_file, "w") as f:
+                    json.dump([], f)
+                
+                return True  
+            
+        except Exception as e:
+            print("Error reading triggered reminders:", e)
+    
+    return False
+
+had_new_reminders = check_and_display_triggered_reminders()
 
 with st.sidebar:
     st.subheader("Task History")
@@ -80,8 +214,8 @@ with st.sidebar:
             elif task["type"] == "url_summary":
                 st.markdown(f"**Summarized URL:** {task['url']}")
             elif task["type"] == "reminder":
-                st.markdown(f"**Reminder:** {task['task']} on {task['date']} at {task['time']}")
-
+                status = "✅ Notified" if task.get("notified") else "⏰ Pending"
+                st.markdown(f"**Reminder:** {task['task']} on {task['date']} at {task['time']} ({status})")
     else:
         st.write("No tasks added")
 
@@ -108,7 +242,7 @@ if pdf_file:
         with open("memory.json", "r+") as f:
             data = json.load(f)
             data["tasks"].append({
-                "type" : summary,
+                "type": "pdf_summary",
                 "summary": summary[:500]
             })
 
@@ -119,10 +253,10 @@ if pdf_file:
         log_to_google_sheets(["PDF Summary", "N/A", "N/A", summary[:100]])
 
 st.subheader("Chat with Assistant")
+
 user_input = st.text_input("You", "")
 
 if user_input:
-
     task = extract_from_text(user_input)
 
     if task["type"] == "email":
@@ -133,7 +267,7 @@ if user_input:
         with open("memory.json", "r+") as f:
             data = json.load(f)
             data["tasks"].append({
-                "type" : "email",
+                "type": "email",
                 "to": to_email,
                 "subject": subject,
                 "body": body
@@ -144,39 +278,35 @@ if user_input:
             f.truncate()
 
         log_to_google_sheets(["Email", to_email, subject, body[:100]])
-
-        response = f"Email simulated to {to_email} with subject '{subject}' and body:\n'{body}'" 
+        response = f"Email simulated to {to_email} with subject '{subject}' and body:\n'{body}'"
 
     elif task["type"] == "calendar":
         person = task["person"]
         date = task["date"]
-        time = task["time"]
+        times = task["time"]
 
         with open("memory.json", "r+") as f:
             data = json.load(f)
             data["tasks"].append({
-                "type" : "calendar",
-                "person" : person,
-                "date" : date,
-                "time" : time
+                "type": "calendar",
+                "person": person,
+                "date": date,
+                "time": times
             })
-        
+
             f.seek(0)
             json.dump(data, f, indent=2)
             f.truncate()
 
-        log_to_google_sheets(["Calendar", person, date, time])
+        log_to_google_sheets(["Calendar", person, date, times])
+        response = f"Meeting with {person} scheduled on {date} at {times}"
 
-        response = f"Meeting with {person} scheduled on {date} at {time} "
-    
     elif task["type"] == "url_summary":
         url = task["url"]
-
         try:
             page = requests.get(url, timeout=10)
             soup = BeautifulSoup(page.content, "html.parser")
             text = soup.get_text()
-
             cleaned_text = text.strip().replace('\n', ' ')
             limited_text = cleaned_text[:2000]
 
@@ -187,51 +317,73 @@ if user_input:
             with open("memory.json", "r+") as f:
                 data = json.load(f)
                 data["tasks"].append({
-                    "type" : "url_summary",
-                    "url" : url,
-                    "summary" : summary
+                    "type": "url_summary",
+                    "url": url,
+                    "summary": summary
                 })
+
                 f.seek(0)
                 json.dump(data, f, indent=2)
                 f.truncate()
 
             log_to_google_sheets(["URL Summary", url, "N/A", summary[:100]])
-
             response = summary
 
         except Exception as e:
             response = f"Failed to fetch or summarize URL. Error: {e}"
 
     elif task["type"] == "reminder":
-        reminder = task["task"]
-        date = task["date"]
-        time = task["time"]
-        with open("memory.json", "r+") as f:
-            data = json.load(f)
-            data["tasks"].append({
-                "type" : "reminder",
-                "task": reminder,
-                "date": date,
-                "time": time
-            })
-            f.seek(0)
-            json.dump(data, f, indent=2)
-            f.truncate()
+        reminder = task.get("task")
+        date = task.get("date")
+        times = task.get("time")
 
-        log_to_google_sheets(["Reminder", reminder, date, time])
-        response = f"Reminder set for {reminder} at {date} on {time}"
+        if not reminder or not date or not times:
+            response = "Could not extract proper reminder details. Please try again with more clarity."
+        else:
+            with open("memory.json", "r+") as f:
+                data = json.load(f)
+                data["tasks"].append({
+                    "type": "reminder",
+                    "task": reminder,
+                    "date": date,
+                    "time": times,
+                    "notified": False
+                })
+
+                f.seek(0)
+                json.dump(data, f, indent=2)
+                f.truncate()
+
+            log_to_google_sheets(["Reminder", reminder, date, times])
+            response = f"Reminder set for '{reminder}' on {date} at {times}"
+    elif task["type"] == "calendar_query":
+        query_date = task.get("date") or datetime.datetime.now().strftime("%Y-%m-%d")
+        if query_date == "<today's date>":
+            query_date = datetime.datetime.now().strftime("%Y-%m-%d")
+
+        with open("memory.json", "r") as f:
+            data = json.load(f)
+
+        # FIXED line: t instead of task
+        meetings = [t for t in data["tasks"] if t["type"] == "calendar" and t["date"] == query_date]
+
+        if meetings:
+            response = f"Meetings scheduled on {query_date}:\n"
+            for m in meetings:
+                response += f"- with {m['person']} at {m['time']}\n"
+        else:
+            response = f"No meetings found on {query_date}"
 
     else:
         with model.chat_session() as session:
-            response = session.generate(prompt=user_input)
+            contexual_prompt = build_contexual_prompt(user_input)
+            response = session.generate(prompt=contexual_prompt)
 
     st.session_state.chat.append(("You", user_input))
     st.session_state.chat.append(("Assistant", response))
 
-for sender,msg in st.session_state.chat:
+for sender, msg in st.session_state.chat:
     st.markdown(f"**{sender}**: {msg}")
 
-
-
-
-
+if st.button("🔄 Check for New Reminders"):
+    st.rerun()
