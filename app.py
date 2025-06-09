@@ -11,6 +11,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 import threading
 import datetime
 import time
+import dateparser
 
 model_path = r"C:/Users/najms/AppData/Local/nomic.ai/GPT4All/Nous-Hermes-2-Mistral-7B-DPO.Q4_0.gguf"
 model = GPT4All(model_name=model_path)
@@ -112,23 +113,34 @@ def extract_from_text(user_input):
 You are a task extraction assistant. A user will give you a message, and you must extract the task details in JSON format.
 
 Your job is to return a dictionary with:
-- type: one of ["email", "calendar", "url_summary", "pdf_summary", "reminder", "general", "calendar_query"]
+- type: one of ["email", "calendar", "url_summary", "pdf_summary", "reminder", "general", "calendar_query", "memory_query"]
 - to (for emails)
 - subject (for emails)
 - body (for emails)
 - person (for calendar)
-- date (for calendar/reminder)
+- date (for calendar/reminder/calendar_query)
 - time (for calendar/reminder)
 - url (for url_summary)
 - task (for reminder)
 - prompt (for general chat or unknown)
+- query (for memory_query — the actual user question)
+- filter (for memory_query — one of ["email", "calendar", "reminder", "all"])
+- query_date: (if mentioned, return the date in YYYY-MM-DD format only (e.g., "2025-06-04")).
+- range (for memory_query — one of ["last_week", "last_month"], optional)
 
 Examples:
+
 Message: "Schedule meeting with Aayush on 2025-06-10 at 15:00"
 => type: "calendar", person: "Aayush", date: "2025-06-10", time: "15:00"
 
 Message: "What meetings do I have today?"
 => type: "calendar_query", date: "<today's date>"
+
+Message: "What tasks did I give you last week?"
+=> type: "memory_query", query: "What tasks did I give you last week?", filter: "all", range: "last_week"
+
+Message: "Show me my email tasks from June 3, 2025"
+=> type: "memory_query", query: "Show me my email tasks from June 3, 2025", filter: "email", query_date: "2025-06-03"
 
 If any field is not needed, return it as null.
 
@@ -137,6 +149,7 @@ Respond ONLY with valid JSON. Do not include explanations or markdown.
 Message: "{user_input}"
 Return JSON only.
 """
+
     with model.chat_session() as session:
         result = session.generate(prompt=prompt)
 
@@ -373,6 +386,48 @@ if user_input:
                 response += f"- with {m['person']} at {m['time']}\n"
         else:
             response = f"No meetings found on {query_date}"
+
+    elif task["type"] == "memory_query":
+        filter_type = task.get("filter", "all")
+        date = task.get("query_date")
+        range_type = task.get("range")
+
+        with open("memory.json", "r") as f:
+            data = json.load(f)["tasks"]
+
+        results = []
+
+        for t in data:
+            if filter_type != "all" and t["type"] != filter_type:
+                continue
+
+            task_date = t.get("date")
+            if not task_date:
+                continue
+
+            if range_type == "last_week":
+                dt = dateparser.parse(task_date)
+                if not dt:
+                    continue
+                if datetime.datetime.now() - dt <= datetime.timedelta(days=7):
+                    results.append(t)
+            
+            elif date and task_date == date:
+                results.append(t)
+
+        if results:
+            response = "Here's what i found:\n"
+            for r in results:
+                if r["type"] == "calendar":
+                    response += f"-Meeting with {r['person']} on {r['date']} at {r['time']}\n"
+                elif r["type"] == "reminder":
+                    status = "done" if r.get("notified") else "pending"
+                    response += f"-Reminder: {r['task']} on {r['date']} at {r['time']} ({status})\n"
+                elif r["type"] == "email":
+                    response += f"-Email to {r['to']} with subject {r['subject']}\n"
+        else:
+            response = "No matching tasks found"
+    
 
     else:
         with model.chat_session() as session:
