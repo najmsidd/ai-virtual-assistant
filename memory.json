@@ -127,6 +127,69 @@
       "person": "Aayush",
       "date": "2025-06-08",
       "time": "15:00"
+    },
+    {
+      "type": "email",
+      "to": "test@example.com",
+      "subject": "Hello",
+      "body": "This is a test email",
+      "sent": false
+    },
+    {
+      "type": "email",
+      "to": "test@example.com",
+      "subject": "Hello",
+      "body": "This is a test email",
+      "sent": false
+    },
+    {
+      "type": "email",
+      "to": "test@example.com",
+      "subject": "Hello",
+      "body": "This is a test email",
+      "sent": false
+    },
+    {
+      "type": "email",
+      "to": "sigmaspamboy@yahoo.com",
+      "subject": "Hello",
+      "body": "This is a test email",
+      "sent": false
+    },
+    {
+      "type": "email",
+      "to": "sigmaspamboy@yahoo.com",
+      "subject": "Hello",
+      "body": "This is a test email",
+      "sent": false
+    },
+    {
+      "type": "email",
+      "to": "sigmaspamboy@yahoo.com",
+      "subject": "Hello",
+      "body": "This is a test email",
+      "sent": false
+    },
+    {
+      "type": "email",
+      "to": "sigmaspamboy@yahoo.com",
+      "subject": "Hello",
+      "body": "This is a test email",
+      "sent": false
+    },
+    {
+      "type": "email",
+      "to": "sigmaspamboy@yahoo.com",
+      "subject": "Hello",
+      "body": "This is a test email",
+      "sent": false
+    },
+    {
+      "type": "email",
+      "to": "sigmaspamboy@yahoo.com",
+      "subject": "Hello",
+      "body": "This is a test email",
+      "sent": false
     }
   ]
 }

@@ -12,6 +12,13 @@ import threading
 import datetime
 import time
 import dateparser
+import base64
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
 
 model_path = r"C:/Users/najms/AppData/Local/nomic.ai/GPT4All/Nous-Hermes-2-Mistral-7B-DPO.Q4_0.gguf"
 model = GPT4All(model_name=model_path)
@@ -34,7 +41,6 @@ def reminder_checker():
                             task["notified"] = True
                     new_tasks.append(task)
 
-                # Save back updated memory
                 f.seek(0)
                 json.dump({"tasks": new_tasks}, f, indent=2)
                 f.truncate()
@@ -42,14 +48,11 @@ def reminder_checker():
         except Exception as e:
             print("Reminder check error:", e)
 
-        # Print to console for debugging
         if reminders_triggered:
             print(f"[{now}] Triggered reminders: {[t['task'] for t in reminders_triggered]}")
 
-        # Write triggered reminders to a file for UI pickup
         if reminders_triggered:
             try:
-                # Create or append to triggered reminders file
                 triggered_file = "triggered_reminders.json"
                 existing_triggered = []
                 
@@ -92,8 +95,60 @@ if not os.path.exists("memory.json"):
     with open("memory.json", "w") as f:
         json.dump({"tasks": []}, f)
 
+if not os.path.exists("chat_memory.json"):
+    with open("chat_memory.json", "w") as f:
+        json.dump({"conversations": []}, f)
+
 with open("memory.json", "r") as f:
     memory = json.load(f)
+
+def save_to_chat_memory(user_message, assistant_response):
+    try:
+        with open("chat_memory.json", "r+") as f:
+            data = json.load(f)
+
+            conversation_entry = {
+                "timestamp": datetime.datetime.now().isoformat(),
+                "user": user_message,
+                "assistant": assistant_response
+            }
+
+            data["conversations"].append(conversation_entry)
+
+            if len(data["conversations"]) > 100:
+                data["conversations"] = data["conversations"][-100:]
+            
+            f.seek(0)
+            json.dump(data, f, indent=2)
+            f.truncate()
+    
+    except Exception as e:
+        print(f"Error saving to chat memory: {e}")
+
+def get_relevant_chat_memory(current_input, limit=10):
+    try:
+        with open("chat_memory.json", "r") as f:
+            data = json.load(f)
+            conversations = data.get("conversations", [])
+
+            if not conversations:
+                return []
+            
+            keywords = current_input.lower().split()
+            relevant_conversations = []
+
+            for conv in conversations[-50:]:
+                user_text = conv["user"].lower()
+                assistant_text = conv["assistant"].lower()
+
+                if any(keyword in user_text or keyword in assistant_text for keyword in keywords):
+                    relevant_conversations.append(conv)
+
+        return relevant_conversations[-limit:]
+    except Exception as e:
+        print(f"Error retrieving chat memory: {e}")
+        return []
+    
 
 def log_to_google_sheets(row):
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -107,6 +162,54 @@ def log_to_google_sheets(row):
         sheet.insert_row(headers, index=1)
 
     sheet.append_row(row)
+
+SCOPES = ['https://www.googleapis.com/auth/gmail.send']
+
+def authenticate_gmail():
+    creds = None
+    if os.path.exists('token.json'):
+        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+    
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token():
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file('gmail_credentials.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+
+            with open('token.json', 'w') as token:
+                token.write(creds.to_json())
+
+    service = build('gmail', 'v1', credentials=creds)
+    return service
+
+def send_email_via_gmail(to_email, subject, body):
+    try:
+
+        if not to_email or not subject or not body:
+            return "Error: Missing email details (to, subject, or body)"
+
+        service = authenticate_gmail()
+
+        message_text = f"""To: {to_email}
+Subject: {subject}
+Content-Type: text/plain; charset=utf-8
+
+{body}"""
+        
+        message_bytes = message_text.encode('utf-8')
+        raw_message = base64.urlsafe_b64encode(message_bytes).decode('ascii')
+        
+        message_body = {'raw': raw_message}
+        send_message = service.users().messages().send(
+            userId = "me",
+            body = message_body
+        ).execute()
+
+        return f"Email successfully sent! Message ID: {send_message['id']}"
+    
+    except Exception as e:
+        return f"Failed to send email. Error: {str(e)}"
 
 def extract_from_text(user_input):
     prompt = f"""
@@ -168,15 +271,23 @@ def build_contexual_prompt(user_input, history_limit=5):
     past_user_msgs = [msg for sender, msg in st.session_state.chat if sender == "You"]
     recent_msgs = past_user_msgs[-history_limit:]
 
+    relevant_memory = get_relevant_chat_memory(user_input)
+
     history_text = "\n".join(f"User: {msg}" for msg in recent_msgs)
 
+    memory_context = ""
+    if relevant_memory:
+        for conv in relevant_memory:
+            memory_context += f"User: {conv['user']}\nAssistant: {conv['assistant'][:200]}...\n"
+    
     return f"""
-You are a helpful assistant with short-term memory.
+You are a helpful assistant with both short-term and long-term memory.
 
-Here is the recent conversation:
+Here is the recent conversation from this session:
 {history_text}
+{memory_context}
 
-Now respond to the user's new message:
+Now respond to the user's new message, taking into account both recent context and relevant past conversations:
 User: {user_input}
 Assistant:"""
 
@@ -221,7 +332,8 @@ with st.sidebar:
     if memory["tasks"]:
         for task in memory["tasks"]:
             if task["type"] == "email":
-                st.markdown(f"**-To:** {task['to']}  \n  **-Subject:** {task['subject']}")
+                status = "Sent" if task.get("sent") else "Failed" if task.get('sent') is False else "Pending"
+                st.markdown(f"**-To:** {task['to']}  \n  **-Subject:** {task['subject']} ({status})")
             elif task["type"] == "calendar":
                 st.markdown(f"**Meeting with:** {task['person']}  **Date:** {task['date']}  **Time:** {task['time']}")
             elif task["type"] == "url_summary":
@@ -231,6 +343,16 @@ with st.sidebar:
                 st.markdown(f"**Reminder:** {task['task']} on {task['date']} at {task['time']} ({status})")
     else:
         st.write("No tasks added")
+
+    st.subheader("Memory stats")
+    try:
+        with open("chat_memory.json", "r") as f:
+            chat_data = json.load(f)
+            conversation_count = len(chat_data.get("conversations", []))
+            st.write(f"Stored Conversations: {conversation_count}")
+    except:
+        st.write("Stored conversations: 0")
+
 
 st.subheader("Upload PDF For Summarization")
 pdf_file = st.file_uploader("Choose a PDF File", type="pdf")
@@ -283,15 +405,32 @@ if user_input:
                 "type": "email",
                 "to": to_email,
                 "subject": subject,
-                "body": body
+                "body": body,
+                "sent": False
             })
 
             f.seek(0)
             json.dump(data, f, indent=2)
             f.truncate()
 
-        log_to_google_sheets(["Email", to_email, subject, body[:100]])
-        response = f"Email simulated to {to_email} with subject '{subject}' and body:\n'{body}'"
+        email_result = send_email_via_gmail(to_email, subject, body)
+
+        with open("memory.json", "r+") as f:
+            data = json.load(f)
+            for i in range(len(data["tasks"]) - 1, -1, -1):
+                if (data["tasks"][i]["type"] == "email" and
+                    data["tasks"][i]["to"] == to_email and
+                    data["tasks"][i]["subject"] == subject):
+                    data["tasks"][i]["sent"] == "successfully" in email_result.lower()
+                    break
+
+            f.seek(0)
+            json.dump(data, f, indent=2)
+            f.truncate()
+
+        status = "Sent" if "successfully" in email_result.lower() else "Failed"    
+        log_to_google_sheets(["Email", to_email, subject, f"{body[:50]}...({status})"])
+        response = email_result
 
     elif task["type"] == "calendar":
         person = task["person"]
@@ -377,7 +516,6 @@ if user_input:
         with open("memory.json", "r") as f:
             data = json.load(f)
 
-        # FIXED line: t instead of task
         meetings = [t for t in data["tasks"] if t["type"] == "calendar" and t["date"] == query_date]
 
         if meetings:
@@ -433,6 +571,8 @@ if user_input:
         with model.chat_session() as session:
             contexual_prompt = build_contexual_prompt(user_input)
             response = session.generate(prompt=contexual_prompt)
+
+    save_to_chat_memory(user_input, response)
 
     st.session_state.chat.append(("You", user_input))
     st.session_state.chat.append(("Assistant", response))

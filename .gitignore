@@ -4,3 +4,5 @@ __pycache__/
 *.dll
 .env
 credentials.json
+gmail_credentials.json
+token.json

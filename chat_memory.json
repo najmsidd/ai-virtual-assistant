@@ -1,0 +1,64 @@
+{
+  "conversations": [
+    {
+      "timestamp": "2025-06-10T18:34:09.835166",
+      "user": "What emails did I send last week?",
+      "assistant": "No matching tasks found"
+    },
+    {
+      "timestamp": "2025-06-10T18:40:40.431153",
+      "user": "What emails did I send last week?",
+      "assistant": "No matching tasks found"
+    },
+    {
+      "timestamp": "2025-06-10T18:48:59.034048",
+      "user": "Did I schedule anything with Aayush?",
+      "assistant": "No matching tasks found"
+    },
+    {
+      "timestamp": "2025-06-10T19:04:48.945596",
+      "user": "What emails did I send last week?",
+      "assistant": "No matching tasks found"
+    },
+    {
+      "timestamp": "2025-06-11T13:32:23.807742",
+      "user": "You: Did I schedule anything with Aayush?",
+      "assistant": "No matching tasks found"
+    },
+    {
+      "timestamp": "2025-06-11T14:37:12.421670",
+      "user": "Did I schedule anything with Aayush?",
+      "assistant": "No matching tasks found"
+    },
+    {
+      "timestamp": "2025-06-13T19:16:35.732583",
+      "user": "send email to sigmaspamboy@yahoo.com with subject Hello and body This is a test email",
+      "assistant": "Failed to send email. Error: 'utf-8' codec can't decode byte 0x89 in position 1: invalid start byte"
+    },
+    {
+      "timestamp": "2025-06-13T19:19:30.063154",
+      "user": "send email to sigmaspamboy@yahoo.com with subject Hello and body This is a test email",
+      "assistant": "Failed to send email. Error: 'utf-8' codec can't decode byte 0x89 in position 1: invalid start byte"
+    },
+    {
+      "timestamp": "2025-06-13T19:25:25.990425",
+      "user": "send email to sigmaspamboy@yahoo.com with subject Hello and body This is a test email",
+      "assistant": "Failed to send email. Error: 'utf-8' codec can't decode byte 0x89 in position 1: invalid start byte"
+    },
+    {
+      "timestamp": "2025-06-13T19:29:47.289950",
+      "user": "send email to sigmaspamboy@yahoo.com with subject Hello and body This is a test email",
+      "assistant": "Failed to send email. Error: Cannot attach additional subparts to non-multipart/*"
+    },
+    {
+      "timestamp": "2025-06-13T19:33:10.642715",
+      "user": "send email to sigmaspamboy@yahoo.com with subject Hello and body This is a test email",
+      "assistant": "Failed to send email. Error: Incorrect padding"
+    },
+    {
+      "timestamp": "2025-06-13T19:43:30.882072",
+      "user": "send email to sigmaspamboy@yahoo.com with subject Hello and body This is a test email",
+      "assistant": "Email successfully sent! Message ID: 19769a36ab6ce793"
+    }
+  ]
+}
